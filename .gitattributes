@@ -1,0 +1,13 @@
+# Normalise line endings to LF in the repository; checkout as LF everywhere.
+* text=auto eol=lf
+
+# Binary artefacts (never shipped, but mark them in case a release branch adds any)
+*.pth binary
+*.pt binary
+*.npz binary
+*.npy binary
+*.mat binary
+*.gdf binary
+*.png binary
+*.pdf binary
+*.xlsx binary

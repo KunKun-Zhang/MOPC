@@ -1,0 +1,52 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the article listed under preferred-citation."
+type: software
+title: "MOPC: Memory-Augmented Online Test-Time Adaptation for EEG Motor Imagery"
+authors:
+  - family-names: Zhang
+    given-names: Kunkun
+    affiliation: "Zhejiang University of Technology"
+  - family-names: Wu
+    given-names: Kehao
+    affiliation: "Zhejiang University of Technology"
+  - family-names: Chen
+    given-names: Zhitao
+    affiliation: "Zhejiang University of Technology"
+  - family-names: Hu
+    given-names: Haigen
+    affiliation: "Zhejiang University of Technology"
+  - family-names: Zhou
+    given-names: Qianwei
+    affiliation: "Zhejiang University of Technology"
+    email: zqw@zjut.edu.cn
+repository-code: "https://github.com/KunKun-Zhang/MOPC"
+license: MIT
+keywords:
+  - brain-computer interface
+  - EEG
+  - motor imagery
+  - online test-time adaptation
+  - domain adaptation
+preferred-citation:
+  type: article
+  title: "Memory-Augmented Online Test-Time Adaptation for EEG Motor Imagery via Perturbation Consistency and Confidence Calibration"
+  authors:
+    - family-names: Zhang
+      given-names: Kunkun
+    - family-names: Wu
+      given-names: Kehao
+    - family-names: Chen
+      given-names: Zhitao
+    - family-names: Hu
+      given-names: Haigen
+    - family-names: Zhou
+      given-names: Qianwei
+  journal: "IEEE Transactions on Instrumentation and Measurement"
+  volume: 75
+  year: 2026
+  doi: "10.1109/TIM.2026.3736160"
+  identifiers:
+    - type: other
+      value: "Art. no. 4015112"
+      description: "Article number"
+  notes: "Art. no. 4015112"

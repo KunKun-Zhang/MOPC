@@ -1,0 +1,19 @@
+# MOPC -- Python dependencies
+#
+# The complete environment used for the experiments is recorded in environment.yml
+# (conda export: Python 3.10.15, PyTorch 2.5.1 + CUDA 12.4). The pins below are the
+# versions from that environment for the packages the released scripts import.
+#
+# GPU users: install PyTorch first with the selector at https://pytorch.org for your
+# CUDA version, then run `pip install -r requirements.txt`. The online (test-time)
+# scripts also run on CPU (`--device cpu`), the setting reported in the paper.
+
+torch==2.5.1
+numpy==1.26.4
+scipy==1.14.1
+pandas==2.2.3
+scikit-learn==1.5.2
+mne==1.4.0
+matplotlib==3.9.2
+joblib==1.4.2
+openpyxl==3.1.5

@@ -1,231 +1,252 @@
-# MOPC: Memory-augmented Online Test-Time Adaptation for EEG Motor Imagery
+# MOPC: Memory-Augmented Online Test-Time Adaptation for EEG Motor Imagery
 
-Official implementation of **"Memory-augmented Online Test-Time Adaptation for EEG Motor Imagery via Perturbation Consistency and Confidence Calibration"**, submitted to *IEEE Transactions on Instrumentation and Measurement* (TIM-26-03350R1).
+Official implementation of
 
-MOPC is a **source-free, single-pass online test-time adaptation** framework for EEG motor-imagery (MI) decoding. It lets a deployed BCI update its decoding parameters *on the fly during inference*, without ever revisiting source data and without a per-subject recalibration session. On BCI Competition IV IIb and OpenBMI it outperforms prior methods by **2.22%** and **3.67%** respectively, while keeping per-trial adaptation latency to roughly **40–60 ms**.
+> Kunkun Zhang, Kehao Wu, Zhitao Chen, Haigen Hu, and Qianwei Zhou,
+> **"Memory-Augmented Online Test-Time Adaptation for EEG Motor Imagery via Perturbation Consistency and Confidence Calibration,"**
+> *IEEE Transactions on Instrumentation and Measurement*, vol. 75, 2026, Art. no. 4015112.
+> DOI: [10.1109/TIM.2026.3736160](https://doi.org/10.1109/TIM.2026.3736160)
+
+College of Computer Science and Technology, Zhejiang University of Technology, and
+Zhejiang Key Laboratory of Visual Information Intelligent Processing, Hangzhou, China.
+Corresponding author: Qianwei Zhou (zqw@zjut.edu.cn).
 
 ---
 
-## Why
+## Overview
 
-EEG-based BCIs are neural measurement instruments, and like any instrument they drift. Non-stationarity within a session and distribution shift across subjects mean a decoder trained on one group degrades sharply on a new individual. The usual remedy — a per-subject calibration session — lengthens setup and undermines reproducibility.
+MOPC is a **source-free, single-pass online test-time adaptation** method for cross-subject
+EEG motor-imagery (MI) decoding. An ensemble of EEGNet source models is trained
+leave-one-subject-out and shipped as frozen weights; on a new subject the ensemble is
+adapted while the trials stream in, one unlabelled trial at a time.
 
-Existing domain-adaptation methods do not solve this in practice: they assume offline access to source data, or to the *whole* target set at once. Neither assumption holds in a real-time measurement loop, and source EEG is often privacy-restricted. MOPC assumes neither.
+Each incoming trial is Euclidean-aligned with a reference that is re-estimated from the
+most recent trials and classified by soft voting over the ensemble. Together with a FIFO
+memory bank of recent trials, it then drives **one gradient step on the batch-normalisation
+affine parameters** of one ensemble member. The adaptation objective combines three terms:
 
-## Method
+1. **Perturbation consistency regularisation** (L_pcr): a random temporal window of each
+   memory-bank trial is set to zero, and the predictive distributions of the clean and masked
+   copies are pulled together.
+2. **Joint entropy minimisation** (L_jem) over the clean and masked copies.
+3. **Confidence-calibrated reweighting** (L_ccr): a focal pseudo-label loss weighted by the
+   feature-space agreement of each trial with the same-class trials in the bank and by an
+   effective-number class-balance weight.
 
-Four components, each implemented in `online_test_cv_my.py` (per dataset):
+On BCI Competition IV IIb and OpenBMI, MOPC outperforms direct transfer, domain adaptation
+and prior test-time adaptation methods (by 2.22 and 3.67 points over the strongest
+baseline, respectively), with a per-trial adaptation latency of about 40–60 ms on an Intel
+Xeon Silver 4210R CPU. A preliminary four-class experiment on BCI Competition IV 2a is also
+included.
 
-| # | Component | What it does |
-|---|-----------|--------------|
-| 1 | **Random-mask perturbation consistency** | Enforces stable predictions under random channel/time masking, so the model is robust to EEG noise and acquisition artifacts rather than to their absence |
-| 2 | **Confidence-calibrated reweighting loss** | Weights each test trial by prediction confidence *combined with feature-space similarity*, suppressing unreliable pseudo-labels and class imbalance during continuous acquisition |
-| 3 | **Lightweight memory module** | A bounded memory bank (`--memory_bank_num`, default `24`) regularizes updates and prevents catastrophic forgetting of established neural patterns |
-| 4 | **Source-free single-pass update** | Adaptation happens once per incoming trial, within a tight latency budget — no source data, no replay, no second epoch |
-
-Reference implementations: [`bci2b/online_test_cv_my.py`](bci2b/online_test_cv_my.py) and [`openbmi/online_test_cv_my.py`](openbmi/online_test_cv_my.py).
-
-## Repository structure
-
-The repository ships **source code only** (~90 Python files). EEG datasets and trained checkpoints are *not* included — see [Datasets](#datasets).
+## Repository layout
 
 ```
 .
-├── bci2a/                      # BCI Competition IV dataset 2a (4-class / 2-class)
-│   ├── cross-session*.py           # within-subject, cross-session training
-│   ├── cross-subject_cv*.py        # cross-subject CV training (source model)
-│   ├── online_test_cv_my.py        # MOPC online adaptation
-│   ├── online_test_cv_TENT.py      # baseline
-│   ├── draw_*.py                   # figures (t-SNE, EEG masks)
-│   ├── model/                      # backbones
-│   └── BCI2a/                      # <- place A0*T.gdf / A0*E.gdf here
-│
-├── bci2b/                      # BCI Competition IV dataset 2b (2-class) — PRIMARY
-│   ├── cross-subject_cv.py         # source-model training
-│   ├── cross-subject_cv_by_subject.py
-│   ├── run_script.py               # driver: sweeps person_id 1..9
-│   ├── online_test_cv_my.py        # MOPC online adaptation
-│   ├── online_test_cv_{tent,cotta,ttime,ttime_ensemble,ea_wo}.py   # baselines
-│   ├── online_test_cv_my_{conformer,conv,lmda,imbalance}.py        # MOPC ablations
-│   ├── cl_*.py                     # contrastive-learning variants
-│   ├── draw_*.py                   # t-SNE, memory-bank and model-comparison figures
-│   ├── model/                      # EEGNet, EEGNet_features, Conformer, ConvNet, LMDANet, ATCNet
-│   ├── utils.py
-│   └── BCI2b/                      # <- place B0*.gdf + B0*.mat here
-│
-├── openbmi/                    # OpenBMI / KU-MI (2-class)
-│   ├── simple_train.py             # source-model training
-│   ├── cross-subject_cv_by_subject.py
-│   ├── online_test_cv_my.py        # MOPC online adaptation
-│   ├── online_test_cv_{tent,cotta,sar,ttime,ttime_ensemble,source_only,lmda}.py
-│   ├── model/                      # EEGNet, EEGNet_features, Conformer, EISATC
-│   ├── model_tta/                  # tent.py, cotta.py, sam.py
-│   ├── utils.py
+├── bci2b/                      BCI Competition IV 2b (two classes), primary dataset
+│   ├── online_test_cv_my.py        MOPC online adaptation (reference implementation)
+│   ├── cross-subject_cv_by_subject.py  source-ensemble training (leave-one-subject-out, 5 folds)
+│   ├── run_script.py               trains the ensembles of all nine target subjects
+│   ├── draw_memory_bank.py, draw_tsne.py, draw_eeg_mask.py   figure scripts
+│   ├── utils.py                    GDF loading, band-pass, Euclidean alignment, random time mask
+│   ├── model/                      EEGNet_features (EEGNet variant of the paper), EEGNet
+│   └── BCI2b/                      <- place B0*.gdf and B0*.mat here (not tracked)
+├── openbmi/                    OpenBMI (two classes)
+│   ├── online_test_cv_my.py        MOPC online adaptation
+│   ├── cross-subject_cv_by_subject.py, run_script_1-55.py   source-ensemble training
+│   ├── utils.py, model/
 │   └── OpenBMI/datasets/
-│       ├── raw/                    # <- place sess0*_subj*_EEG_MI.mat here
-│       ├── get_cross_subject_data.py   # raw .mat -> per-subject .npy
-│       └── readdata.py                 # subject-independent split builder
-│
-├── requirements.txt
-├── LICENSE
-└── README.md
+│       ├── get_cross_subject_data.py   raw .mat -> per-subject .npy (20 channels, 8-30 Hz, 250 Hz)
+│       └── raw/                        <- place sess0*_subj*_EEG_MI.mat here (not tracked)
+├── bci2a/                      BCI Competition IV 2a (four classes, preliminary experiment)
+│   ├── train_2a_4class_1000ep.py       source-ensemble training
+│   ├── run_2a_4class_mopc_final.py     source-only and MOPC conditions
+│   ├── run_2a_4class_dynEA_baseline.py "+ dynamic EA (no BN)" condition
+│   ├── analyze_3conditions.py          per-subject table and decomposition
+│   ├── README_run.md
+│   └── BCI2a/                          <- place A0*.gdf and A0*.mat here (not tracked)
+├── tools/
+│   └── summarize_runs.py           mean +/- std over seeds of the --results_csv rows
+├── environment.yml             conda export of the experiment environment
+├── requirements.txt            pinned pip dependencies
+├── REPRODUCE.md                table-by-table reproduction guide
+├── THIRD_PARTY_NOTICES.md      licenses of adapted components
+└── CITATION.cff
 ```
 
-Directories named `run_cross_subject_*/` are **output** directories: each run writes trained checkpoints (`.pth`), Euclidean-alignment statistics (`*_ea_bars_*.npz`) and logs there. They are gitignored.
+Datasets, trained checkpoints, logs and generated figures are not tracked (see `.gitignore`).
 
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/MOPC.git
+git clone https://github.com/KunKun-Zhang/MOPC.git
 cd MOPC
-
-conda create -n mopc python=3.10
+conda env create -f environment.yml      # Python 3.10, PyTorch 2.5.1 + CUDA 12.4
 conda activate mopc
-
-# Install PyTorch matching your CUDA version first — see https://pytorch.org
-# e.g. CUDA 11.8:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-pip install -r requirements.txt
 ```
 
-> **Note on versions.** The original experiments were run in a conda environment whose exact package versions were not recorded in the repository. `requirements.txt` lists conservative minimum versions inferred from the source, not a frozen lockfile. A CUDA GPU is assumed — the scripts call `torch.cuda.set_device` unconditionally. `bci2b/online_test_cv_my cpu.py` is a CPU variant used for the latency measurements.
+`requirements.txt` pins the same versions for a pip-based install; install PyTorch for your
+CUDA version first (<https://pytorch.org>). Source-model training uses a GPU when one is
+available. The online scripts run on a CPU by default (`--device cpu`, the setting of the
+paper) or on a GPU with `--device cuda --gpu_id 0`.
 
 ## Datasets
 
-None of the three datasets is redistributed here. Download each from its official source and unpack it into the location below so the relative paths in the scripts resolve.
+| Dataset | Source | Place the files in | Preparation |
+|---|---|---|---|
+| BCI Competition IV 2b | <https://www.bbci.de/competition/iv/> (dataset 2b) | `bci2b/BCI2b/`: `B0101T.gdf` … `B0905E.gdf` **and** the true-label files `B0101T.mat` … `B0905E.mat` | none (read on the fly) |
+| OpenBMI (MI paradigm) | GigaDB dataset 100542, <http://gigadb.org/dataset/100542> | `openbmi/OpenBMI/datasets/raw/`: `sess01_subj01_EEG_MI.mat` … `sess02_subj54_EEG_MI.mat` | `python openbmi/OpenBMI/datasets/get_cross_subject_data.py` writes `npy_data_250/subjNN_{data,label}.npy` |
+| BCI Competition IV 2a | <https://www.bbci.de/competition/iv/> (dataset 2a) | `bci2a/BCI2a/`: `A01T.gdf` … `A09E.gdf` **and** `A01T.mat` … `A09E.mat` | none (read on the fly) |
 
-| Dataset | Official source | Terms | Unpack to | Preprocessing |
-|---|---|---|---|---|
-| **BCI Competition IV 2a** | [bbci.de/competition/iv](https://www.bbci.de/competition/iv/) (dataset 2a) | Competition data-use terms; citation of Brunner et al. required | `bci2a/BCI2a/` — `A01T.gdf` … `A09E.gdf` plus matching `.mat` label files | loaded on the fly via MNE |
-| **BCI Competition IV 2b** | [bbci.de/competition/iv](https://www.bbci.de/competition/iv/) (dataset 2b) | as above (Leeb et al.) | `bci2b/BCI2b/` — `B0101T.gdf` … `B0905E.gdf` plus matching `.mat` label files | loaded on the fly via MNE |
-| **OpenBMI (KU-MI)** | [GigaDB dataset 100542](http://gigadb.org/dataset/100542) (Lee et al., *GigaScience* 2019) | GigaDB / CC0 terms | `openbmi/OpenBMI/datasets/raw/` — `sess01_subj01_EEG_MI.mat` … `sess02_subj54_EEG_MI.mat` | run `get_cross_subject_data.py`, then `readdata.py` |
-
-True labels for BCI IV 2a/2b are distributed separately from the signal files on the competition results page; both the `.gdf` and its `.mat` label file must be present.
-
-**Signal preprocessing** is applied in-script, not offline:
-
-| | BCI IV 2b | OpenBMI |
-|---|---|---|
-| Band-pass | 4–40 Hz | 8–30 Hz |
-| Sampling rate | 250 Hz | 250 Hz |
-| MI window | 4 s (`--train_samples 1000`) | 4 s (`--train_samples 1000`) |
+The BCI Competition IV downloads require accepting the data-use agreement; the true labels
+of all sessions are distributed as a separate archive on the competition results page and
+must sit next to the `.gdf` files. The OpenBMI preparation script keeps the 20 motor
+channels (FC5–FC6, C5–C6, CP5–CP6), applies the 8–30 Hz band-pass at the original
+1000 Hz, resamples to 250 Hz and normalises each trial by its maximum absolute value.
+Please cite the dataset papers (Brunner et al. 2008; Leeb et al. 2008; Lee et al. 2019)
+alongside this work.
 
 ## Usage
 
-Reproduction is a two-stage process: train a cross-subject source model, then adapt it online.
-
-### 1. Train the source model
+### 1. Train the source ensembles
 
 ```bash
-cd bci2b
-python cross-subject_cv.py \
-    --lr 0.001 --epochs 300 --batch_size 32 --patience 100 \
-    --seed 2024 --gpu_id 0 \
-    --train_samples 1000 --fold 5 --classes 2 --person_id 1 \
-    --model_type EEGNet \
-    --model_save_path '/run_cross_subject_{}_{}_cv_class_2_ea_and_norm/'
+cd bci2b && python run_script.py           # leave-one-subject-out over subjects 1-9
+cd ../openbmi && python run_script_1-55.py  # leave-one-subject-out over subjects 1-54
 ```
 
-To sweep all nine held-out subjects, use the provided driver instead:
-
-```bash
-python run_script.py        # loops person_id 1..9
-```
-
-> `run_script.py` hardcodes its own hyperparameters — edit the argument list inside it to change them. For Conformer, the source comments specify `--lr 0.0002` and `--batch_size 100`.
+For every target subject the driver calls `cross-subject_cv_by_subject.py`, which pools the
+data of the other subjects (all five sessions on 2b), aligns them with Euclidean alignment and
+trains five EEGNet models, one per inner fold, with AdamW (lr 1e-3, cosine annealing, weight
+decay 1e-5), batch 32 and 1000 epochs. The checkpoint with the best validation accuracy of
+each fold is kept. Checkpoints `{subject}_{fold}.pth` and the source alignment reference
+`{subject}_ea_bars_1000.npz` are written to
+`run_cross_subject_EEGNet_features_1000_cv_class_2_T_and_E_by_subject/`.
 
 ### 2. Run MOPC online adaptation
 
 ```bash
-cd bci2b
-python online_test_cv_my.py \
-    --seed 2024 --gpu_id 0 \
-    --train_samples 1000 --classes 2 --person_id 1 --session E --fold 5 \
-    --memory_bank_num 24 \
-    --model_type EEGNet \
-    --model_save_path '/run_cross_subject_{}_{}_cv_class_2_ea_and_norm/'
+cd bci2b && python online_test_cv_my.py --device cpu
+cd ../openbmi && python online_test_cv_my.py --device cpu
 ```
 
-`--model_save_path` is a format string: the two `{}` placeholders are filled with `--model_type` and `--train_samples` at runtime, and it must point at the directory the source model was written to in step 1.
+The scripts stream the evaluation data of every subject in turn (2b: sessions 04E and 05E,
+320 trials; OpenBMI: the two online test phases, 200 trials). They print per-subject
+accuracy, F1 and Cohen's kappa and the mean over subjects, and save the per-subject values
+next to the checkpoints. The ensemble, the optimisers and the memory bank are
+re-initialised at the start of each evaluation session (2b) or test phase (OpenBMI).
 
-For OpenBMI:
+| Option | Default | Meaning |
+|---|---|---|
+| `--device {cpu,cuda}` | `cpu` | device of the online stage |
+| `--person_id` | `0` | target subject; `0` runs all subjects |
+| `--memory_bank_num` | `24` | memory-bank capacity B |
+| `--fold` | `5` | ensemble size N |
+| `--seed` | `2024` | random seed (OpenBMI: `--n_seeds k` runs k consecutive seeds) |
+| `--imbalance` | off | 2:1 class-imbalanced stream (half of one class removed at random) |
+| `--no_pcr`, `--no_jem`, `--no_ccr` | off | drop one loss term (ablation) |
+| `--static_ea` | off | keep the source alignment reference (no re-estimation from the bank) |
+| `--results_csv FILE` | – | append a one-line summary of the run to `FILE` |
+| `--time` | off | per-trial latency once the bank is full (2b script) |
+| `--save_adapted` | off | save the adapted first ensemble member of each subject (2b script, used by `draw_tsne.py`) |
+
+### 3. Comparison methods
+
+The scripts of the comparison methods (the direct-transfer, domain-adaptation and
+test-time-adaptation baselines of the tables) are not part of this repository. DANN and SHOT
+were run with the DeepTransferEEG framework (<https://github.com/sylyoung/DeepTransferEEG>),
+and TENT, CoTTA, T-TIME and DPLOT were implemented following their original papers and
+public code. As stated in the paper, the domain-adaptation and test-time-adaptation baselines
+use the EEGNet backbone and the same Euclidean pre-alignment. The ShallowConvNet, LMDA-Net
+and EEG-Conformer models of the direct-transfer and backbone comparisons were adapted from
+the public code of their authors and are not redistributed here (see
+`THIRD_PARTY_NOTICES.md`). `REPRODUCE.md` maps every table row to a command or to its source.
+
+### 4. Four-class experiment (BCI Competition IV 2a)
 
 ```bash
-cd openbmi
-python online_test_cv_my.py \
-    --seed 2024 --gpu_id 0 \
-    --train_samples 1000 --classes 2 --person_id 1 --session 24 --fold 5 \
-    --memory_bank_num 24 \
-    --model_type EEGNet_features \
-    --model_save_path '/run_cross_subject_{}_{}_cv_class_2_T_and_E_by_subject/'
+cd bci2a
+python train_2a_4class_1000ep.py --gpu 0                      # 9 subjects x 5 folds
+python run_2a_4class_mopc_final.py --adapt 0 --cpu            # source-only (static EA)
+python run_2a_4class_dynEA_baseline.py --adapt 1 --cpu        # + dynamic EA, no BN update
+python run_2a_4class_mopc_final.py --adapt 1 --cpu            # MOPC
+python analyze_3conditions.py                                 # per-subject table and decomposition
 ```
 
-### 3. Run the baselines
+## Configuration
 
-Same arguments, different script — e.g. `python online_test_cv_tent.py --person_id 1 ...`.
+The released scripts default to the configuration reported in the paper:
 
-### Key arguments
+| Parameter | Value |
+|---|---|
+| Sampling rate / trial window | 250 Hz; 0–4 s after the cue (1000 samples) |
+| Channels | 3 (2b: C3, Cz, C4); 20 (OpenBMI); 22 (2a) |
+| Band-pass | 4–40 Hz, 5th-order Butterworth (2b, 2a); 8–30 Hz (OpenBMI) |
+| Trial normalisation | x / max\|x\| |
+| Source training | AdamW, lr 1e-3, cosine annealing, weight decay 1e-5, batch 32, 1000 epochs, leave-one-subject-out with 5 inner folds, N = 5 |
+| Online update | BN affine parameters of one ensemble member per trial, AdamW lr 6e-4, one step per trial |
+| Memory bank B | 24 (FIFO) |
+| Mask window W | 200 samples (0.8 s) |
+| Class-balance / focal (β, γ) | 0.999 / 0.5 |
+| Loss weights | L_pcr : L_jem : L_ccr = 1 : 1 : 1 |
 
-| Argument | Default | Meaning |
-|---|---|---|
-| `--seed` | `2024` | random seed |
-| `--gpu_id` | `'0'` | CUDA device index |
-| `--train_samples` | `1000` | MI window length in samples (4 s @ 250 Hz) |
-| `--classes` | `2` | number of MI classes (2a also supports `4`) |
-| `--person_id` | `0` | held-out target subject |
-| `--session` | `E` (2b) / `24` (OpenBMI) | evaluation session |
-| `--fold` | `5` | number of ensemble models |
-| `--memory_bank_num` | `24` | memory-bank size |
-| `--model_type` | `EEGNet` (2b) / `EEGNet_features` (OpenBMI) | backbone |
-| `--model_save_path` | see above | source-checkpoint directory (format string) |
+## Method-to-code map
 
-The OpenBMI script additionally exposes `--EA_align`, `--use_ema` and `--imblanced` (all default `False`).
+| Paper | Code (`bci2b/online_test_cv_my.py`; the OpenBMI script is identical apart from pre-processing) |
+|---|---|
+| Euclidean alignment, source reference (Eqs. 1–2) | `utils.preprocess_ea` in the trainer; reference saved as `{subject}_ea_bars_1000.npz` |
+| Re-estimation of the reference from the memory bank | `Online_Method._preprocess`, `utils.get_ea_bar` |
+| Soft-voting ensemble (Eq. 3) | `Online_Method._predict` |
+| FIFO memory bank (Eq. 4) | `Online_Method.memory_bank` (`collections.deque(maxlen=B)`) |
+| Random time mask and L_pcr (Eqs. 5–6) | `utils.augmentations.data_aug_random_mask`; `loss_pcr` in `Online_Method._update_model` |
+| L_jem (Eq. 7) | `utils.Entropy`; `loss_jem` in `Online_Method._update_model` |
+| L_ccr (Eqs. 8–11) | class `SWBLoss` |
+| L_total and the BN-only step (Eq. 12, Algorithm 1) | `Online_Method._update_model`, optimiser `bn_optimizer[i]` over the BatchNorm affine parameters |
 
-## Baselines implemented
-
-| Method | Reference | File |
-|---|---|---|
-| Source-only | — | `openbmi/online_test_cv_source_only.py` |
-| EA | Euclidean Alignment (He & Wu, 2020) | `bci2b/online_test_cv_ea_wo.py` |
-| TENT | Wang et al., ICLR 2021 | `openbmi/model_tta/tent.py`, `*/online_test_cv_tent.py`, `bci2a/online_test_cv_cv_TENT.py` |
-| CoTTA | Wang et al., CVPR 2022 | `openbmi/model_tta/cotta.py`, `*/online_test_cv_cotta.py` |
-| SAR | Niu et al., ICLR 2023 | `openbmi/model_tta/sam.py`, `openbmi/online_test_cv_sar.py` |
-| T-TIME | Li et al., 2024 | `*/online_test_cv_ttime.py`, `*/online_test_cv_ttime_ensemble.py` |
-
-Backbones available: **EEGNet**, **EEGNet_features**, **EEG-Conformer**, **ShallowConvNet**, **LMDA-Net**, **ATCNet**, **EISATC** (see each `model/` directory).
+Implementation details that complement the paper: the networks end in a softmax layer, so
+the network outputs are class probabilities. The memory bank stores the filtered, normalised
+trials with their pseudo-labels, and the current alignment reference is applied when a
+batch is formed. The class counts of the effective-number weight are taken over the memory
+bank, and the adaptation step is taken on the bank before the current trial is inserted.
+L_jem is averaged over the 2B clean and masked rows of the batch, and L_pcr is computed as
+`torch.nn.KLDivLoss(reduction='batchmean')(log p_clean, p_masked)`.
 
 ## Results
 
-From the paper:
+From the paper (class-balanced, cross-subject, mean over subjects):
 
-> Evaluated on the BCI IV IIb and OpenBMI datasets, MOPC achieves state-of-the-art performance, outperforming prior methods by **2.22%** and **3.67%**, respectively, while keeping the per-trial adaptation latency to approximately **40–60 ms**.
+| Dataset | Direct transfer (EEGNet) | Strongest baseline | MOPC |
+|---|---|---|---|
+| BCI Competition IV 2b | 76.28 % | 79.01 % (T-TIME) | **81.23 %** |
+| OpenBMI | 73.57 % | 75.27 % (T-TIME) | **78.94 %** |
 
-Full per-subject tables, ablations and t-SNE analyses are in the paper.
+Per-subject results, the class-imbalanced protocol, ablations, the memory-bank sweep, the
+backbone comparison and the four-class experiment are reported in the paper;
+`REPRODUCE.md` maps each of them to a script.
 
 ## Citation
 
 ```bibtex
 @article{zhang2026mopc,
-  title   = {Memory-augmented Online Test-Time Adaptation for {EEG} Motor Imagery
-             via Perturbation Consistency and Confidence Calibration},
+  title   = {Memory-Augmented Online Test-Time Adaptation for {EEG} Motor Imagery via Perturbation Consistency and Confidence Calibration},
   author  = {Zhang, Kunkun and Wu, Kehao and Chen, Zhitao and Hu, Haigen and Zhou, Qianwei},
   journal = {IEEE Transactions on Instrumentation and Measurement},
+  volume  = {75},
   year    = {2026},
-  note    = {To appear}
+  note    = {Art. no. 4015112},
+  doi     = {10.1109/TIM.2026.3736160}
 }
 ```
 
-If you use the datasets, please also cite their original publications (Brunner et al. for BCI IV 2a, Leeb et al. for BCI IV 2b, Lee et al. 2019 for OpenBMI).
-
 ## Acknowledgements
 
-This work was supported in part by the National Natural Science Foundation of China (Grants 62271448, 62373324), and in part by the Zhejiang Province Leading Geese Plan (Grant 2025C02160).
-
-The authors are with the College of Computer Science and Technology, Zhejiang University of Technology, Hangzhou 310023, China, and with the Zhejiang Key Laboratory of Visual Information Intelligent Processing, Hangzhou 310023, China.
-
-Contact: Qianwei Zhou — `zqw@zjut.edu.cn`
+This work was supported in part by the National Natural Science Foundation of China under
+Grant 62271448 and Grant 62373324 and in part by the "Pioneer" and "Leading Goose"
+Research and Development Program of Zhejiang under Grant 2026C02A1221 and Grant
+2025C02160.
 
 ## License
 
-Source code released under the [MIT License](LICENSE). The EEG datasets are not covered by this license and remain subject to the terms of their respective providers.
+The original code is released under the MIT License (`LICENSE`). Components adapted from
+other projects keep their own licenses; see `THIRD_PARTY_NOTICES.md`. The EEG datasets are
+not covered by this license and remain subject to their providers' terms.

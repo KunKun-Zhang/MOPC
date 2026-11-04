@@ -1,0 +1,72 @@
+# MOPC -- .gitignore
+# The repository ships source code only. EEG datasets, trained checkpoints,
+# run outputs and generated figures stay out of version control.
+# NOTE: git treats "#" as a comment only at the start of a line; never put a
+# comment after a pattern on the same line (it becomes part of the pattern).
+
+# --- Third-party EEG datasets (not redistributed; see README.md) -----------
+*.gdf
+*.mat
+*.npy
+*.edf
+*.bdf
+*.set
+*.fif
+bci2a/BCI2a/
+bci2b/BCI2b/
+openbmi/OpenBMI/datasets/raw/
+openbmi/OpenBMI/datasets/npy_data_*/
+openbmi/OpenBMI/datasets/subject_independent/
+openbmi/OpenBMI/datasets/hdf5_data/
+
+# --- Trained checkpoints and alignment statistics -------------------------
+*.pth
+*.pt
+*.ckpt
+*.h5
+*.hdf5
+*.npz
+
+# --- Run outputs (checkpoints, logs, collated spreadsheets) ---------------
+run_cross_subject_*/
+bci2b/run/
+bci2b/draw_result/
+*/draw/
+*.log
+*.xlsx
+results/
+
+# --- Generated figures (regenerate with the draw_*.py scripts) -------------
+*.png
+*.pdf
+*.svg
+*.eps
+
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+env/
+.venv/
+ENV/
+.conda/
+.python-version
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Editors / OS ---------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
