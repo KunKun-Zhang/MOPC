@@ -1,7 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Kunkun Zhang, Kehao Wu, Zhitao Chen, Haigen Hu, Qianwei Zhou
-Zhejiang University of Technology
+Copyright (c) 2026 Kunkun Zhang, Kehao Wu, Zhitao Chen, Haigen Hu, Qianwei Zhou (Zhejiang University of Technology)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-The MIT license above covers the original code in this repository. Files
-adapted from third-party projects remain under their own licenses, which are
-listed, together with the required notices, in THIRD_PARTY_NOTICES.md.
-
-The EEG datasets used in the paper (BCI Competition IV datasets 2a and 2b, and
-the OpenBMI motor-imagery dataset on GigaDB) are NOT distributed here and remain
-subject to their providers' terms of use. See README.md for the official sources.
